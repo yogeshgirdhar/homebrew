@@ -9,6 +9,12 @@ end
 
 module Homebrew extend self
   def upgrade
+    if Process.uid.zero? and not File.stat(HOMEBREW_BREW_FILE).uid.zero?
+      # note we only abort if Homebrew is *not* installed as sudo and the user
+      # calls brew as root. The fix is to chown brew to root.
+      abort "Cowardly refusing to `sudo brew upgrade'"
+    end
+
     Homebrew.perform_preinstall_checks
 
     outdated = if ARGV.named.empty?
@@ -57,7 +63,7 @@ module Homebrew extend self
 
     installer.install
     installer.caveats
-    installer.finish # includes link step
+    installer.finish
   rescue CannotInstallFormulaError => e
     onoe e
   rescue BuildError => e
@@ -65,7 +71,7 @@ module Homebrew extend self
     puts
   ensure
     # restore previous installation state if build failed
-    outdated_keg.link if outdated_keg and not f.linked_keg.directory?
+    outdated_keg.link if outdated_keg and not f.installed? rescue nil
   end
 
 end
